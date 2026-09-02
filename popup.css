@@ -1,0 +1,22 @@
+:root { color-scheme: light; font: 14px/1.4 system-ui, sans-serif; }
+body { margin: 0; min-width: 320px; color: #202124; }
+main { padding: 16px; }
+h1 { margin: 0 0 8px; font-size: 18px; }
+p { margin: 0 0 12px; color: #5f6368; }
+button { border: 0; border-radius: 5px; background: #f50; color: white; cursor: pointer; font: inherit; font-weight: 650; padding: 8px 12px; }
+button[disabled] { cursor: wait; opacity: .65; }
+#copy { margin-left: 8px; background: #444; }
+#diagnostics { margin-top: 12px; border: 1px solid #ddd; border-radius: 5px; padding: 8px; }
+#diagnostics summary { cursor: pointer; font-weight: 650; }
+#debug-output { margin: 8px 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 11px/1.4 ui-monospace, monospace; }
+#copy-debug { background: #666; font-size: 12px; padding: 5px 8px; }
+#report { border-collapse: collapse; table-layout: fixed; margin-top: 14px; width: 100%; }
+#report th { border-bottom: 2px solid #ddd; color: #5f6368; font-size: 11px; letter-spacing: .03em; padding: 3px 4px; text-align: left; text-transform: uppercase; }
+#report td { border-bottom: 1px solid #eee; height: 26px; padding: 2px 4px; vertical-align: middle; }
+#report th:first-child, #report td:first-child { text-align: right; width: 28px; }
+#report th:nth-child(2) { width: 42%; }
+.track { display: block; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-list { display: flex; gap: 4px; overflow-x: auto; white-space: nowrap; }
+.pill { background: #f1f3f4; border-radius: 999px; color: #1769aa; display: inline-block; font-size: 11px; font-weight: 650; padding: 3px 7px; text-decoration: none; }
+.pill--disabled { color: #7a3131; }
+a { color: #1769aa; overflow-wrap: anywhere; }

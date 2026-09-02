@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Secrets / environment / credential files
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.log
+secrets.json
+credentials.json
+
+# Editor / IDE
+.idea/
+.vscode/
+Thumbs.db
+
+# Saved browser session snapshots (may contain account & session data)
+sample html/

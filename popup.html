@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Playlist report</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <h1>Playlist report</h1>
+      <p id="status">Open a SoundCloud playlist, then scan it.</p>
+      <button id="scan" type="button">Scan playlist</button>
+      <button id="copy" type="button" hidden>Copy report</button>
+      <details id="diagnostics" hidden>
+        <summary>Diagnostics</summary>
+        <pre id="debug-output"></pre>
+        <button id="copy-debug" type="button">Copy diagnostics</button>
+      </details>
+      <table id="report" aria-live="polite" hidden>
+        <thead>
+          <tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Download</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </main>
+    <script src="track-inspector.js"></script>
+    <script src="popup-v2.js"></script>
+  </body>
+</html>
