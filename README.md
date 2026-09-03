@@ -2,14 +2,16 @@
 
 A Firefox sidebar extension that scans tracks in the open SoundCloud playlist and reports:
 
-- `Soundcloud` — the track page declares an uploader-enabled SoundCloud download.
+- `Soundcloud` — SoundCloud reports an uploader-enabled download with remaining download allowance.
 - `Hypeddit` / `Pumpyoursound` / `Droploud` — a matching link was found in the track metadata or description.
 - `Bandcamp (free)` — Bandcamp’s public page contains a “name your price” signal.
 - `Bandcamp (paid)` — a Bandcamp link was found without that signal.
 - `Downloads disabled` — no supported download destination was detected.
 - `Regional restrictions` — SoundCloud explicitly reported that the track is unavailable in a country.
 
-The extension only reports publicly available metadata. It does not download media, bypass download gates, or submit third-party forms.
+The extension only reports metadata that the open SoundCloud page is allowed to access. It does not download media, bypass download gates, or submit third-party forms.
+
+Long playlists do not need to be scrolled first. SoundCloud embeds the complete ordered track-ID list in the playlist page, then requests complete track records in batches as rows become visible. The extension reads that embedded order and makes equivalent internal web-app requests in batches of 30. This does not use SoundCloud's developer API, require a developer application, or require a Pro account.
 
 When scanning a playlist, track checks retain SoundCloud’s playlist context. This allows the report to see track-specific modules such as artist-customized purchase banners that SoundCloud does not always render on a plain standalone track URL.
 
@@ -26,19 +28,22 @@ It can also scan a private playlist when you are already signed in to SoundCloud
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Choose **Load Temporary Add-on**.
 3. Select `manifest.json` from this folder.
-4. Click the extension toolbar button to open its persistent sidebar. Open a public `soundcloud.com/<user>/sets/<playlist>` page (including the `www.soundcloud.com` version), scroll through any lazy-loaded tracks, then choose **Scan playlist**. The sidebar keeps the report visible while you browse the playlist.
-5. On the first scan, approve Firefox’s request for SoundCloud and Bandcamp access. The extension requests these hosts from the Scan button because a persistent sidebar can outlive Firefox’s temporary active-tab permission.
+4. Because version 0.5.0 adds SoundCloud request observation, reload the SoundCloud playlist page once after loading or updating the extension. Wait until its first few tracks appear.
+5. Click the extension toolbar button to open its persistent sidebar, then choose **Scan playlist**. No playlist scrolling is required, and the scan can continue while another tab or window is active.
+6. On the first scan, approve Firefox’s optional request for Bandcamp access. SoundCloud access is a required extension permission so its initial metadata request can be observed before the Scan button is clicked.
 
 Use **Copy report** to place the final list on the clipboard.
 
 If scanning fails, the popup opens a **Diagnostics** section. Use **Copy diagnostics** and share that output when reporting a problem. Secret query parameters and SoundCloud `/s-...` tokens are redacted from the diagnostic URL.
 
-If diagnostics say “Receiving end does not exist,” reload the temporary add-on after updating it. The background scanner must be started for the sidebar to inspect track pages.
+If diagnostics say the SoundCloud metadata request was not observed, reload the playlist tab once, wait for its first tracks to appear, and scan again. This is especially important for private playlists because their batch request uses the signed-in page's temporary authorization context.
+
+The temporary signed-in request context is kept only in Firefox's in-memory extension session storage. It is removed when the source tab closes and is cleared when the browser session ends. It is never included in the extension diagnostics.
 
 The page scanner is injected only when **Scan playlist** is clicked. The resulting track list is copied into a fixed snapshot, and all long-running track checks happen inside the persistent sidebar. Switching tabs or lazy-loading more playlist rows therefore does not retarget or mutate a scan already in progress.
 
 ## Notes
 
-- SoundCloud’s page markup changes regularly; this uses both the rendered track list and its hydrated page data as fallbacks.
-- Tracks not yet loaded by SoundCloud cannot be discovered. Scroll to the end of long playlists before scanning.
+- SoundCloud’s page markup and internal web-app requests can change. Diagnostics report the embedded count, batch count, returned count, and whether a signed-in request context was captured.
+- A playlist must be reloaded once after the extension is first installed or updated so the request observer can see SoundCloud's initial metadata request. Public playlists may also work from the page's visible request template without that reload.
 - A track may show several pills—for example, an official SoundCloud download and a Bandcamp link—so you can choose the source you want to open.

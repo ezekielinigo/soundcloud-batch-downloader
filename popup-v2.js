@@ -9,8 +9,6 @@ const reportBody = report.querySelector("tbody");
 let latestResults = [];
 let debugLog = {};
 const REQUIRED_ORIGINS = [
-  "https://soundcloud.com/*",
-  "https://*.soundcloud.com/*",
   "https://bandcamp.com/*",
   "https://*.bandcamp.com/*"
 ];
@@ -81,6 +79,58 @@ async function reachScanner(tabId) {
   return topFrame?.result;
 }
 
+function withPlaylistContext(value, context) {
+  const url = new URL(value);
+  url.hash = "";
+  if (context) url.searchParams.set("in", context);
+  return url.href;
+}
+
+function orderedHydratedTracks(playlist, hydratedTracks) {
+  const embeddedById = new Map(
+    playlist.tracks.filter((track) => track.id).map((track) => [String(track.id), track])
+  );
+  const metadataById = new Map(
+    hydratedTracks.filter((track) => track.id).map((track) => [String(track.id), track])
+  );
+
+  return playlist.trackIds.map((id, index) => {
+    const metadata = metadataById.get(String(id));
+    const embedded = embeddedById.get(String(id));
+    const title = metadata?.title || embedded?.title || `Unavailable track ${index + 1}`;
+    const sourceUrl = metadata?.permalink_url || embedded?.url || playlist.pageUrl;
+    let url = sourceUrl;
+    try { url = withPlaylistContext(sourceUrl, playlist.playlistContext); } catch (_) { /* use source URL */ }
+
+    if (!metadata && !embedded) {
+      return { id: String(id), title, url, unavailableReason: "Downloads disabled" };
+    }
+    return {
+      id: String(id),
+      title,
+      url,
+      soundcloudMetadata: metadata || null
+    };
+  });
+}
+
+async function hydratePlaylistSnapshot(playlist, tabId) {
+  if (!playlist.trackIds?.length) return playlist.tracks.map((track) => ({ ...track }));
+
+  status.textContent = `Loading metadata for ${playlist.trackIds.length} tracks…`;
+  const hydrated = await browser.runtime.sendMessage({
+    type: "hydratePlaylistTracks",
+    tabId,
+    trackIds: playlist.trackIds,
+    apiTemplate: playlist.apiTemplate
+  });
+  if (!hydrated || !Array.isArray(hydrated.tracks)) {
+    throw new Error("The SoundCloud metadata loader returned no response.");
+  }
+  setDebug("soundCloudMetadata", hydrated.diagnostics || { returnedTrackCount: hydrated.tracks.length });
+  return orderedHydratedTracks(playlist, hydrated.tracks);
+}
+
 scanButton.addEventListener("click", async () => {
   // Invoke this before awaiting anything else: Firefox only permits a runtime
   // permission request directly inside the user's click handler.
@@ -98,7 +148,7 @@ scanButton.addEventListener("click", async () => {
     const hostPermissionGranted = await permissionRequest;
     setDebug("hostPermission", { granted: hostPermissionGranted, origins: REQUIRED_ORIGINS });
     if (!hostPermissionGranted) {
-      throw new Error("SoundCloud access was not granted. Click Scan playlist and allow access when Firefox asks.");
+      throw new Error("Bandcamp access was not granted. Click Scan playlist and allow access when Firefox asks.");
     }
     const tabs = await activeTabRequest;
     const tab = tabs[0];
@@ -109,13 +159,16 @@ scanButton.addEventListener("click", async () => {
     setDebug("pageScanner", playlist?.diagnostics || "No response");
     if (!playlist) throw new Error("The SoundCloud page scanner returned no response.");
     if (!playlist.supported) throw new Error(`${playlist.reason} Detected page: ${playlist.diagnostics?.page || "unknown"}`);
-    if (!playlist.tracks.length) {
-      throw new Error("Playlist detected, but no track rows were found. Scroll to the end, wait for it to load, and scan again.");
+    if (playlist.diagnostics?.routeLooksLikePlaylist && !playlist.trackIds?.length) {
+      throw new Error("The current playlist's embedded track list is unavailable or belongs to an earlier SoundCloud page. Reload this playlist tab directly, wait for its first tracks, then scan again.");
+    }
+    if (!playlist.trackIds?.length && !playlist.tracks.length) {
+      throw new Error("Playlist detected, but no embedded track IDs or track rows were found.");
     }
 
-    // Copy the page result into a fixed snapshot. Lazy loading or scrolling can
-    // mutate the SoundCloud DOM without changing this run underneath us.
-    const trackSnapshot = playlist.tracks.map((track) => ({ ...track }));
+    // Hydrate SoundCloud's complete embedded ID list before inspecting links.
+    // This fixed snapshot is independent of later scrolling and tab switches.
+    const trackSnapshot = await hydratePlaylistSnapshot(playlist, tab.id);
     status.textContent = `Checking ${trackSnapshot.length} tracks…`;
     latestResults = await globalThis.TrackInspector.inspectTracks(trackSnapshot, ({ completed, total, track }) => {
       status.textContent = track

@@ -87,8 +87,46 @@
     return match[1] === "true" ? true : match[1] === "false" ? false : JSON.parse(match[1]);
   }
 
+  async function inspectContent(track, content, { downloadable = false, downloadUrl, regionalRestriction = false } = {}) {
+    const bandcamp = [...new Set([
+      ...anchorHrefs(content).filter(isBandcampReleaseUrl),
+      ...uniqueLinks(content, linkPatterns.bandcamp)
+    ])];
+    const hypeddit = linksMatching(content, linkPatterns.hypeddit, isHypedditUrl);
+    const droploud = linksMatching(content, linkPatterns.droploud, isDroploudTrackUrl);
+    const pumpyoursound = uniqueLinks(content, linkPatterns.pumpyoursound);
+    const logs = [];
+    let soundcloudDownload = track.url;
+    if (typeof downloadUrl === "string") {
+      try { soundcloudDownload = new URL(downloadUrl, track.url).href; } catch (_) { /* use track page */ }
+    }
+    if (downloadable) logs.push({ label: "Soundcloud", url: soundcloudDownload });
+    for (const url of hypeddit) logs.push({ label: "Hypeddit", url });
+    for (const url of droploud) logs.push({ label: "Droploud", url });
+    for (const url of pumpyoursound) logs.push({ label: "Pumpyoursound", url });
+    const bandcampRelease = firstBandcampRelease(bandcamp);
+    if (bandcampRelease) logs.push(await classifyBandcamp(bandcampRelease));
+    if (!logs.length) logs.push({ label: regionalRestriction ? "Regional restrictions" : "Downloads disabled" });
+    return { ...track, logs };
+  }
+
   async function inspectTrack(track) {
     try {
+      if (track.unavailableReason) return { ...track, logs: [{ label: track.unavailableReason }] };
+
+      // Batch-hydrated records already contain the original description and
+      // official-download flag. Using them avoids one extra SoundCloud page
+      // request per track and lets the sidebar keep working in the background.
+      if (track.soundcloudMetadata) {
+        const metadata = track.soundcloudMetadata;
+        const metadataText = [metadata.description, metadata.purchase_url].filter(Boolean).join("\n");
+        return await inspectContent(track, metadataText, {
+          downloadable: metadata.downloadable === true && metadata.has_downloads_left !== false,
+          downloadUrl: metadata.download_url,
+          regionalRestriction: metadata.policy === "BLOCK" || hasRegionalRestriction(metadataText)
+        });
+      }
+
       const response = await fetch(track.url, { credentials: "include" });
       const html = await response.text();
       const regionalRestriction = hasRegionalRestriction(html);
@@ -97,28 +135,12 @@
         throw new Error(`SoundCloud returned ${response.status}`);
       }
 
-      const downloadable = valueFromTrackData(html, "downloadable") === true;
-      const downloadUrl = valueFromTrackData(html, "download_url");
-      const bandcamp = [...new Set([
-        ...anchorHrefs(html).filter(isBandcampReleaseUrl),
-        ...uniqueLinks(html, linkPatterns.bandcamp)
-      ])];
-      const hypeddit = linksMatching(html, linkPatterns.hypeddit, isHypedditUrl);
-      const droploud = linksMatching(html, linkPatterns.droploud, isDroploudTrackUrl);
-      const pumpyoursound = uniqueLinks(html, linkPatterns.pumpyoursound);
-      const logs = [];
-      let soundcloudDownload = track.url;
-      if (typeof downloadUrl === "string") {
-        try { soundcloudDownload = new URL(downloadUrl, track.url).href; } catch (_) { /* use track page */ }
-      }
-      if (downloadable) logs.push({ label: "Soundcloud", url: soundcloudDownload });
-      for (const url of hypeddit) logs.push({ label: "Hypeddit", url });
-      for (const url of droploud) logs.push({ label: "Droploud", url });
-      for (const url of pumpyoursound) logs.push({ label: "Pumpyoursound", url });
-      const bandcampRelease = firstBandcampRelease(bandcamp);
-      if (bandcampRelease) logs.push(await classifyBandcamp(bandcampRelease));
-      if (!logs.length) logs.push({ label: regionalRestriction ? "Regional restrictions" : "Downloads disabled" });
-      return { ...track, logs };
+      return await inspectContent(track, html, {
+        downloadable: valueFromTrackData(html, "downloadable") === true
+          && valueFromTrackData(html, "has_downloads_left") !== false,
+        downloadUrl: valueFromTrackData(html, "download_url"),
+        regionalRestriction
+      });
     } catch (error) {
       return { ...track, logs: [{ label: "Downloads disabled" }], error: error.message };
     }
