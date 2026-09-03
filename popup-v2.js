@@ -1,4 +1,7 @@
 const status = document.querySelector("#status");
+const scanProgress = document.querySelector("#scan-progress");
+const scanProgressBar = document.querySelector("#scan-progress-bar");
+const scanProgressCount = document.querySelector("#scan-progress-count");
 const scanButton = document.querySelector("#scan");
 const copyButton = document.querySelector("#copy");
 const report = document.querySelector("#report");
@@ -12,6 +15,19 @@ const REQUIRED_ORIGINS = [
   "https://bandcamp.com/*",
   "https://*.bandcamp.com/*"
 ];
+
+function showProgress(current, total) {
+  scanProgressBar.max = total;
+  scanProgressBar.value = current;
+  scanProgressCount.textContent = `${current}/${total}`;
+  status.hidden = true;
+  scanProgress.hidden = false;
+}
+
+function hideProgress() {
+  scanProgress.hidden = true;
+  status.hidden = false;
+}
 
 function setDebug(step, value) {
   debugLog[step] = value;
@@ -46,10 +62,19 @@ function render(results) {
     const logCell = document.createElement("td");
     const logList = document.createElement("div");
     logList.className = "log-list";
-    for (const log of item.logs || [{ label: "Downloads disabled" }]) {
+    for (const log of item.logs || [{ label: "Download unavailable", iconClass: "fa-solid fa-ban", variant: "negative" }]) {
       const pill = document.createElement(log.url ? "a" : "span");
-      pill.className = `pill${log.url ? "" : " pill--disabled"}`;
-      pill.textContent = log.label;
+      pill.className = `pill ${log.variant === "negative" ? "pill--negative" : "pill--positive"}`;
+      pill.title = log.label;
+      pill.setAttribute("aria-label", log.label);
+      if (log.iconClass) {
+        const icon = document.createElement("i");
+        icon.className = `pill__icon ${log.iconClass}`;
+        icon.setAttribute("aria-hidden", "true");
+        pill.append(icon);
+      } else {
+        pill.textContent = log.label;
+      }
       if (log.url) {
         pill.href = log.url;
         pill.target = "_blank";
@@ -103,7 +128,7 @@ function orderedHydratedTracks(playlist, hydratedTracks) {
     try { url = withPlaylistContext(sourceUrl, playlist.playlistContext); } catch (_) { /* use source URL */ }
 
     if (!metadata && !embedded) {
-      return { id: String(id), title, url, unavailableReason: "Downloads disabled" };
+      return { id: String(id), title, url, unavailableReason: "Download unavailable" };
     }
     return {
       id: String(id),
@@ -115,7 +140,10 @@ function orderedHydratedTracks(playlist, hydratedTracks) {
 }
 
 async function hydratePlaylistSnapshot(playlist, tabId) {
-  if (!playlist.trackIds?.length) return playlist.tracks.map((track) => ({ ...track }));
+  if (!playlist.trackIds?.length) {
+    setDebug("trackSnapshot", { source: "page tracks", trackCount: playlist.tracks.length });
+    return playlist.tracks.map((track) => ({ ...track }));
+  }
 
   status.textContent = `Loading metadata for ${playlist.trackIds.length} tracks…`;
   const hydrated = await browser.runtime.sendMessage({
@@ -141,6 +169,7 @@ scanButton.addEventListener("click", async () => {
   scanButton.disabled = true;
   copyButton.hidden = true;
   diagnostics.hidden = true;
+  hideProgress();
   reportBody.replaceChildren();
   report.hidden = true;
   debugLog = { extensionVersion: browser.runtime.getManifest().version };
@@ -159,29 +188,34 @@ scanButton.addEventListener("click", async () => {
     setDebug("pageScanner", playlist?.diagnostics || "No response");
     if (!playlist) throw new Error("The SoundCloud page scanner returned no response.");
     if (!playlist.supported) throw new Error(`${playlist.reason} Detected page: ${playlist.diagnostics?.page || "unknown"}`);
-    if (playlist.diagnostics?.routeLooksLikePlaylist && !playlist.trackIds?.length) {
-      throw new Error("The current playlist's embedded track list is unavailable or belongs to an earlier SoundCloud page. Reload this playlist tab directly, wait for its first tracks, then scan again.");
+    const privatePlaylistDetected = playlist.diagnostics?.routeLooksLikePlaylist
+      && playlist.diagnostics?.pageSaysPlaylist
+      && playlist.diagnostics?.embeddedPlaylistTrackCount === 0
+      && playlist.diagnostics?.declaredPlaylistTrackCount == null
+      && playlist.tracks.length > 0;
+    if (privatePlaylistDetected) {
+      throw new Error("Private playlist detected! Make sure to set your playlists to public before using the tool.");
     }
     if (!playlist.trackIds?.length && !playlist.tracks.length) {
       throw new Error("Playlist detected, but no embedded track IDs or track rows were found.");
     }
 
-    // Hydrate SoundCloud's complete embedded ID list before inspecting links.
-    // This fixed snapshot is independent of later scrolling and tab switches.
+    // Prefer SoundCloud's complete embedded ID list; use page tracks only
+    // for non-standard playlist pages that do not expose that full list.
     const trackSnapshot = await hydratePlaylistSnapshot(playlist, tab.id);
-    status.textContent = `Checking ${trackSnapshot.length} tracks…`;
+    showProgress(0, trackSnapshot.length);
     latestResults = await globalThis.TrackInspector.inspectTracks(trackSnapshot, ({ completed, total, track }) => {
-      status.textContent = track
-        ? `Checking ${completed + 1} of ${total}: ${track.title}`
-        : `Checked ${completed} of ${total} tracks.`;
+      showProgress(track ? completed + 1 : completed, total);
     });
     if (!Array.isArray(latestResults)) throw new Error("The sidebar track checker did not return a result list.");
     setDebug("sidebarInspector", { requested: trackSnapshot.length, returned: latestResults.length, targetTabId: tab.id });
     render(latestResults);
+    hideProgress();
     status.textContent = `${playlist.title}: ${latestResults.length} tracks checked.`;
     copyButton.hidden = false;
   } catch (error) {
     setDebug("error", { name: error.name, message: error.message, stack: error.stack });
+    hideProgress();
     status.textContent = error.message;
     diagnostics.hidden = false;
     diagnostics.open = true;

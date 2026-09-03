@@ -1,8 +1,21 @@
 (() => {
+  const ICON_CLASSES = Object.freeze({
+    soundcloud: "fa-brands fa-soundcloud",
+    droploud: "fa-solid fa-d",
+    hypeddit: "fa-solid fa-h",
+    pumpyoursound: "fa-solid fa-p",
+    bandcamp: "fa-solid fa-b"
+  });
+
+  const STATUS_ICONS = Object.freeze({
+    restricted: "fa-solid fa-earth-americas",
+    unavailable: "fa-solid fa-ban"
+  });
+
   const linkPatterns = {
     bandcamp: /https:\/\/[a-z0-9-]+\.bandcamp\.com\/(?:track|album)\/[^/?#\s"'<>()\\]+(?=$|[?#\s"'<>()\[\]{}.,;!])/ig,
     hypeddit: /https:\/\/hypeddit\.com\/[^/?#\s"'<>()\\]+(?:\/[^/?#\s"'<>()\\]+)?(?=$|[?#\s"'<>()\[\]{}.,;!])/ig,
-    droploud: /https:\/\/droploud\.com\/track\/[^/?#\s"'<>()\\]+(?=$|[?#\s"'<>()\[\]{}.,;!])/ig,
+    droploud: /https:\/\/droploud\.com\/(?:track|gate)\/[^/?#\s"'<>()\\]+(?=$|[?#\s"'<>()\[\]{}.,;!])/ig,
     pumpyoursound: /(?:https?:)?\/\/(?:www\.)?pumpyoursound\.com\/[^\s"'<>()]*/ig
   };
 
@@ -48,13 +61,21 @@
     } catch (_) { return false; }
   }
 
-  function isDroploudTrackUrl(url) {
+  function isDroploudUrl(url) {
     try {
       const parsed = new URL(url);
       return parsed.protocol === "https:"
         && parsed.hostname === "droploud.com"
-        && /^\/track\/[^/]+\/?$/i.test(parsed.pathname);
+        && /^\/(?:track|gate)\/[^/]+\/?$/i.test(parsed.pathname);
     } catch (_) { return false; }
+  }
+
+  function restrictedLog() {
+    return { label: "Region restricted", iconClass: STATUS_ICONS.restricted, variant: "negative" };
+  }
+
+  function unavailableLog() {
+    return { label: "Download unavailable", iconClass: STATUS_ICONS.unavailable, variant: "negative" };
   }
 
   function hasRegionalRestriction(html) {
@@ -73,10 +94,10 @@
       if (!response.ok) throw new Error(`Bandcamp returned ${response.status}`);
       const html = await response.text();
       return /name\s*(?:your|ur)\s*price|pay\s+what\s+you\s+want/i.test(html)
-        ? { label: "Bandcamp (free)", url }
-        : { label: "Bandcamp (paid)", url };
+        ? { label: "Bandcamp (free)", iconClass: ICON_CLASSES.bandcamp, url }
+        : { label: "Bandcamp (paid)", iconClass: ICON_CLASSES.bandcamp, url };
     } catch (_) {
-      return { label: "Bandcamp (paid)", url };
+      return { label: "Bandcamp (paid)", iconClass: ICON_CLASSES.bandcamp, url };
     }
   }
 
@@ -93,26 +114,26 @@
       ...uniqueLinks(content, linkPatterns.bandcamp)
     ])];
     const hypeddit = linksMatching(content, linkPatterns.hypeddit, isHypedditUrl);
-    const droploud = linksMatching(content, linkPatterns.droploud, isDroploudTrackUrl);
+    const droploud = linksMatching(content, linkPatterns.droploud, isDroploudUrl);
     const pumpyoursound = uniqueLinks(content, linkPatterns.pumpyoursound);
     const logs = [];
     let soundcloudDownload = track.url;
     if (typeof downloadUrl === "string") {
       try { soundcloudDownload = new URL(downloadUrl, track.url).href; } catch (_) { /* use track page */ }
     }
-    if (downloadable) logs.push({ label: "Soundcloud", url: soundcloudDownload });
-    for (const url of hypeddit) logs.push({ label: "Hypeddit", url });
-    for (const url of droploud) logs.push({ label: "Droploud", url });
-    for (const url of pumpyoursound) logs.push({ label: "Pumpyoursound", url });
+    if (downloadable) logs.push({ label: "Soundcloud", iconClass: ICON_CLASSES.soundcloud, url: soundcloudDownload });
+    for (const url of hypeddit) logs.push({ label: "Hypeddit", iconClass: ICON_CLASSES.hypeddit, url });
+    for (const url of droploud) logs.push({ label: "Droploud", iconClass: ICON_CLASSES.droploud, url });
+    for (const url of pumpyoursound) logs.push({ label: "Pumpyoursound", iconClass: ICON_CLASSES.pumpyoursound, url });
     const bandcampRelease = firstBandcampRelease(bandcamp);
     if (bandcampRelease) logs.push(await classifyBandcamp(bandcampRelease));
-    if (!logs.length) logs.push({ label: regionalRestriction ? "Regional restrictions" : "Downloads disabled" });
+    if (!logs.length) logs.push(regionalRestriction ? restrictedLog() : unavailableLog());
     return { ...track, logs };
   }
 
   async function inspectTrack(track) {
     try {
-      if (track.unavailableReason) return { ...track, logs: [{ label: track.unavailableReason }] };
+      if (track.unavailableReason) return { ...track, logs: [unavailableLog()] };
 
       // Batch-hydrated records already contain the original description and
       // official-download flag. Using them avoids one extra SoundCloud page
@@ -131,7 +152,7 @@
       const html = await response.text();
       const regionalRestriction = hasRegionalRestriction(html);
       if (!response.ok) {
-        if (regionalRestriction) return { ...track, logs: [{ label: "Regional restrictions" }] };
+        if (regionalRestriction) return { ...track, logs: [restrictedLog()] };
         throw new Error(`SoundCloud returned ${response.status}`);
       }
 
@@ -142,7 +163,7 @@
         regionalRestriction
       });
     } catch (error) {
-      return { ...track, logs: [{ label: "Downloads disabled" }], error: error.message };
+      return { ...track, logs: [unavailableLog()], error: error.message };
     }
   }
 

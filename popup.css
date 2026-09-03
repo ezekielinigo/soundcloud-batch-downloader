@@ -3,6 +3,9 @@ body { margin: 0; min-width: 320px; color: #202124; }
 main { padding: 16px; }
 h1 { margin: 0 0 8px; font-size: 18px; }
 p { margin: 0 0 12px; color: #5f6368; }
+#scan-progress { align-items: center; color: #5f6368; display: flex; gap: 8px; margin: 0 0 12px; }
+#scan-progress-bar { accent-color: #f50; flex: 1; height: 8px; }
+#scan-progress-count { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
 button { border: 0; border-radius: 5px; background: #f50; color: white; cursor: pointer; font: inherit; font-weight: 650; padding: 8px 12px; }
 button[disabled] { cursor: wait; opacity: .65; }
 #copy { margin-left: 8px; background: #444; }
@@ -17,6 +20,9 @@ button[disabled] { cursor: wait; opacity: .65; }
 #report th:nth-child(2) { width: 42%; }
 .track { display: block; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-list { display: flex; gap: 4px; overflow-x: auto; white-space: nowrap; }
-.pill { background: #f1f3f4; border-radius: 999px; color: #1769aa; display: inline-block; font-size: 11px; font-weight: 650; padding: 3px 7px; text-decoration: none; }
-.pill--disabled { color: #7a3131; }
+.pill { align-items: center; border-radius: 999px; color: #fff; display: inline-flex; font-size: 11px; font-weight: 650; justify-content: center; min-height: 21px; min-width: 21px; padding: 3px 7px; text-decoration: none; }
+.pill--positive, .pill--negative { color: #fff; }
+.pill--positive { background: #238636; }
+.pill--negative { background: #b42318; }
+.pill__icon { font-size: 13px; }
 a { color: #1769aa; overflow-wrap: anywhere; }
