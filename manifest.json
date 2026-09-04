@@ -1,16 +1,20 @@
 {
   "manifest_version": 3,
   "name": "SoundCloud Playlist Download Report",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Reports official SoundCloud download availability and external download links for tracks in a SoundCloud playlist.",
   "permissions": ["activeTab", "tabs", "scripting", "clipboardWrite", "storage", "webRequest", "downloads"],
-  "host_permissions": ["https://soundcloud.com/*", "https://*.soundcloud.com/*"],
+  "host_permissions": [
+    "https://soundcloud.com/*",
+    "https://*.soundcloud.com/*",
+    "https://accounts.spotify.com/*"
+  ],
   "optional_host_permissions": ["https://bandcamp.com/*", "https://*.bandcamp.com/*"],
   "action": {
     "default_title": "Open SoundCloud Playlist Report"
   },
   "background": {
-    "scripts": ["background-v2.js"]
+    "scripts": ["connected-accounts.js", "background-v2.js"]
   },
   "sidebar_action": {
     "default_title": "Playlist report",

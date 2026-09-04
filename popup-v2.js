@@ -12,11 +12,19 @@ const reportBody = report.querySelector("tbody");
 const settingsForm = document.querySelector("#settings-form");
 const saveSettingsButton = document.querySelector("#save-settings");
 const settingsStatus = document.querySelector("#settings-status");
+const settingsDetails = document.querySelector("#settings");
+const accountButtons = [...document.querySelectorAll(".account-button")];
+const ACCOUNT_UI = Object.freeze({
+  soundcloud: Object.freeze({ label: "SoundCloud", iconClass: "fa-brands fa-soundcloud" }),
+  spotify: Object.freeze({ label: "Spotify", iconClass: "fa-brands fa-spotify" })
+});
+let accountRefreshGeneration = 0;
 let latestResults = [];
 let debugLog = {};
 const bandcampRunStates = new Map();
 const downloadButtonsByRunId = new Map();
 const SETTINGS_KEY = "settings";
+const LOCAL_DEFAULT_SETTINGS_FILE = "default-settings.local.json";
 const DEFAULT_SETTINGS = Object.freeze({
   gateEmail: "",
   gateName: "",
@@ -52,6 +60,16 @@ function normalizedSettings(value) {
   };
 }
 
+async function localDefaultSettings() {
+  try {
+    const response = await fetch(browser.runtime.getURL(LOCAL_DEFAULT_SETTINGS_FILE), { cache: "no-store" });
+    if (!response.ok) return DEFAULT_SETTINGS;
+    return normalizedSettings(await response.json());
+  } catch (_) {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 function settingsFromForm() {
   const formData = new FormData(settingsForm);
   return normalizedSettings({
@@ -83,7 +101,13 @@ function showSettingsStatus(message, { error = false } = {}) {
 async function loadSettings() {
   try {
     const stored = await browser.storage.local.get(SETTINGS_KEY);
-    fillSettingsForm(normalizedSettings(stored[SETTINGS_KEY]));
+    if (stored[SETTINGS_KEY] && typeof stored[SETTINGS_KEY] === "object") {
+      fillSettingsForm(normalizedSettings(stored[SETTINGS_KEY]));
+      return;
+    }
+    const settings = await localDefaultSettings();
+    await browser.storage.local.set({ [SETTINGS_KEY]: settings });
+    fillSettingsForm(settings);
   } catch (error) {
     showSettingsStatus(`Could not load settings: ${error.message}`, { error: true });
   }
@@ -109,6 +133,78 @@ settingsForm.addEventListener("submit", async (event) => {
 });
 
 void loadSettings();
+
+function accountButton(service) {
+  return accountButtons.find((button) => button.dataset.service === service);
+}
+
+function renderAccount(account) {
+  const button = accountButton(account.service);
+  const metadata = ACCOUNT_UI[account.service];
+  if (!button || !metadata) return;
+  const statusText = account.state === "checking"
+    ? "Checking…"
+    : account.state === "signed-in"
+      ? account.username
+      : account.state === "signed-out"
+        ? "Sign in"
+        : "Unable to check";
+  button.disabled = account.state === "checking";
+  button.classList.toggle("account-button--signed-out", account.state === "signed-out");
+  button.classList.toggle("account-button--error", account.state === "error");
+  button.dataset.accountState = account.state;
+  const icon = document.createElement("i");
+  icon.className = metadata.iconClass;
+  icon.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.textContent = `${statusText}`;
+  button.replaceChildren(icon, label);
+  button.setAttribute("aria-label", `${metadata.label} - ${statusText}`);
+  button.title = account.state === "error"
+    ? `${account.message || "Could not check this account."} Click to open the account-status page.`
+    : account.state === "signed-in"
+      ? `Open ${metadata.label}.`
+      : account.state === "signed-out"
+        ? `Open ${metadata.label} so you can sign in.`
+        : `Checking ${metadata.label}…`;
+}
+
+async function refreshAccounts() {
+  const generation = ++accountRefreshGeneration;
+  accountButtons.forEach((button) => renderAccount({ service: button.dataset.service, state: "checking" }));
+  try {
+    const accounts = await browser.runtime.sendMessage({ type: "checkConnectedAccounts" });
+    if (generation !== accountRefreshGeneration) return;
+    if (!Array.isArray(accounts)) throw new Error("The account checker returned no result.");
+    accounts.forEach(renderAccount);
+  } catch (error) {
+    if (generation !== accountRefreshGeneration) return;
+    accountButtons.forEach((button) => {
+      renderAccount({
+        service: button.dataset.service,
+        state: "error",
+        message: error.message
+      });
+    });
+  }
+}
+
+accountButtons.forEach((button) => {
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await browser.runtime.sendMessage({ type: "openConnectedAccount", service: button.dataset.service });
+    } catch (error) {
+      renderAccount({ service: button.dataset.service, state: "error", message: error.message });
+    } finally {
+      if (button.dataset.accountState !== "checking") button.disabled = false;
+    }
+  });
+});
+
+settingsDetails.addEventListener("toggle", () => {
+  if (settingsDetails.open) void refreshAccounts();
+});
 
 function showProgress(current, total) {
   scanProgressBar.max = total;

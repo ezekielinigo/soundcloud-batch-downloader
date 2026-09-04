@@ -10,6 +10,7 @@ const memoryRequestContexts = new Map();
 const BANDCAMP_RUN_TIMEOUT_MS = 30000;
 const DOWNLOAD_START_TIMEOUT_MS = 30000;
 const SETTINGS_KEY = "settings";
+const LOCAL_DEFAULT_SETTINGS_FILE = "default-settings.local.json";
 const BANDCAMP_FILE_TYPES = new Set(["mp3-v0", "mp3-320", "flac", "aac", "ogg-vorbis", "alac", "wav", "aiff"]);
 const bandcampRunsByTabId = new Map();
 const activeBandcampRunIds = new Map();
@@ -110,6 +111,18 @@ function normalizedBandcampSettings(value) {
     autoCloseTabs: source.autoCloseTabs === true,
     tabTimeout: timeout
   };
+}
+
+async function bandcampSettingsForRun() {
+  const stored = await browser.storage.local.get(SETTINGS_KEY);
+  if (stored[SETTINGS_KEY] && typeof stored[SETTINGS_KEY] === "object") {
+    return normalizedBandcampSettings(stored[SETTINGS_KEY]);
+  }
+  try {
+    const response = await fetch(browser.runtime.getURL(LOCAL_DEFAULT_SETTINGS_FILE), { cache: "no-store" });
+    if (response.ok) return normalizedBandcampSettings(await response.json());
+  } catch (_) { /* local defaults are optional */ }
+  return normalizedBandcampSettings(null);
 }
 
 async function sendBandcampProgress(run, state, message = "") {
@@ -215,9 +228,8 @@ async function startSoundcloudDownload(message) {
   if (!isSoundcloudTrackUrl(message?.trackUrl)) throw new Error("The requested SoundCloud page is not a supported track URL.");
   if (activeSoundcloudRunIds.has(runId)) return { started: false, duplicate: true };
 
-  const stored = await browser.storage.local.get(SETTINGS_KEY);
   const tab = await browser.tabs.create({ url: message.trackUrl, active: false });
-  const run = { runId, tabId: tab.id, settings: normalizedBandcampSettings(stored[SETTINGS_KEY]), phase: "opening", executing: false, finished: false, closing: false, trackPageUrl: "" };
+  const run = { runId, tabId: tab.id, settings: await bandcampSettingsForRun(), phase: "opening", executing: false, finished: false, closing: false, trackPageUrl: "" };
   soundcloudRunsByTabId.set(tab.id, run);
   activeSoundcloudRunIds.set(runId, run);
   try {
@@ -363,8 +375,7 @@ async function startBandcampFreeDownload(message) {
   if (!isBandcampReleaseUrl(message?.url)) throw new Error("The requested Bandcamp URL is not a supported release page.");
   if (activeBandcampRunIds.has(runId)) return { started: false, duplicate: true };
 
-  const stored = await browser.storage.local.get(SETTINGS_KEY);
-  const settings = normalizedBandcampSettings(stored[SETTINGS_KEY]);
+  const settings = await bandcampSettingsForRun();
   const tab = await browser.tabs.create({ url: message.url, active: false });
   const run = { runId, tabId: tab.id, settings, phase: "release", executing: false, finished: false, closing: false, releasePageUrl: "", downloadPageLoaded: false };
   bandcampRunsByTabId.set(tab.id, run);
@@ -548,6 +559,8 @@ async function hydratePlaylistTracks(message) {
 }
 
 browser.runtime.onMessage.addListener((message, sender) => {
+  if (message?.type === "checkConnectedAccounts") return globalThis.ConnectedAccounts.checkAll();
+  if (message?.type === "openConnectedAccount") return globalThis.ConnectedAccounts.open(message.service);
   if (message?.type === "hydratePlaylistTracks") return hydratePlaylistTracks(message);
   if (message?.type === "startBandcampFreeDownload") return startBandcampFreeDownload(message);
   if (message?.type === "startSoundcloudDownload") return startSoundcloudDownload(message);

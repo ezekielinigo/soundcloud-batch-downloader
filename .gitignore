@@ -10,6 +10,7 @@
 *.log
 secrets.json
 credentials.json
+default-settings.local.json
 
 # Editor / IDE
 .idea/

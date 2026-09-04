@@ -1,47 +1,54 @@
-:root { color-scheme: light; font: 14px/1.4 system-ui, sans-serif; }
-body { margin: 0; min-width: 320px; color: #202124; }
+:root { color-scheme: dark; font: 14px/1.4 system-ui, sans-serif; }
+body { margin: 0; min-width: 320px; background: #121212; color: #fff; }
 main { padding: 16px; }
 h1 { margin: 0 0 8px; font-size: 18px; }
-p { margin: 0 0 12px; color: #5f6368; }
-#settings { margin: 0 0 14px; border: 1px solid #ddd; border-radius: 5px; padding: 8px; }
+p { margin: 0 0 12px; color: #999; }
+#settings { margin: 0 0 14px; border: 1px solid #303030; border-radius: 5px; padding: 8px; }
 #settings summary { cursor: pointer; font-weight: 650; }
 #settings-form { display: grid; gap: 10px; margin-top: 10px; }
-#settings fieldset { border: 1px solid #e5e5e5; border-radius: 5px; display: grid; gap: 5px; margin: 0; padding: 8px; }
-#settings legend { color: #5f6368; font-size: 12px; font-weight: 650; padding: 0 4px; }
-#settings label { color: #3c4043; font-size: 12px; font-weight: 650; }
-#settings input, #settings select, #settings textarea { box-sizing: border-box; border: 1px solid #c7c7c7; border-radius: 4px; font: inherit; padding: 6px 7px; width: 100%; }
+#settings fieldset { border: 1px solid #303030; border-radius: 5px; display: grid; gap: 5px; margin: 0; padding: 8px; }
+#settings legend { color: #999; font-size: 12px; font-weight: 650; padding: 0 4px; }
+#settings label { color: #999; font-size: 12px; font-weight: 650; }
+#settings input, #settings select, #settings textarea { box-sizing: border-box; background: #121212; border: 1px solid #303030; border-radius: 4px; font: inherit; padding: 6px 7px; width: 100%; }
 #settings textarea { resize: vertical; }
-#settings input:focus, #settings select:focus, #settings textarea:focus { border-color: #f50; outline: 2px solid #ffd6c2; }
+#settings input:focus, #settings select:focus, #settings textarea:focus { border-color: #999; outline: 2px solid #303030; }
 #settings .checkbox-label { align-items: center; display: flex; gap: 7px; }
-#settings .checkbox-label input { accent-color: #f50; width: auto; }
+#settings .checkbox-label input { accent-color: #999; width: auto; }
 .settings-actions { align-items: center; display: flex; gap: 8px; }
-#settings-status { color: #238636; font-size: 12px; }
-#settings-status.error { color: #b42318; }
-#scan-progress { align-items: center; color: #5f6368; display: flex; gap: 8px; margin: 0 0 12px; }
-#scan-progress-bar { accent-color: #f50; flex: 1; height: 8px; }
+#settings-status { color: #999; font-size: 12px; }
+#settings-status.error { color: #fff; }
+#connected-accounts { gap: 8px; }
+.account-actions { display: grid; gap: 6px; }
+.account-button { align-items: center; background: #333333; display: flex; gap: 4px; text-align: left; }
+.account-button.account-button--signed-out { background: #333333; }
+.account-button.account-button--error { background: #333333; }
+.account-button[data-service="spotify"][data-account-state="signed-in"] { background: #1db954; }
+.account-button[data-service="soundcloud"][data-account-state="signed-in"] { background: #ff5500; }
+#scan-progress { align-items: center; color: #999; display: flex; gap: 8px; margin: 0 0 12px; }
+#scan-progress-bar { accent-color: #999; flex: 1; height: 8px; }
 #scan-progress-count { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
-button { border: 0; border-radius: 5px; background: #f50; color: white; cursor: pointer; font: inherit; font-weight: 650; padding: 8px 12px; }
+button { border: 0; border-radius: 5px; background: #303030; color: #fff; cursor: pointer; font: inherit; font-weight: 650; padding: 8px 12px; }
 button[disabled] { cursor: wait; opacity: .65; }
-#copy { margin-left: 8px; background: #444; }
-#diagnostics { margin-top: 12px; border: 1px solid #ddd; border-radius: 5px; padding: 8px; }
+#copy { margin-left: 8px; background: #303030; }
+#diagnostics { margin-top: 12px; border: 1px solid #303030; border-radius: 5px; padding: 8px; }
 #diagnostics summary { cursor: pointer; font-weight: 650; }
 #debug-output { margin: 8px 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 11px/1.4 ui-monospace, monospace; }
-#copy-debug { background: #666; font-size: 12px; padding: 5px 8px; }
+#copy-debug { background: #303030; font-size: 12px; padding: 5px 8px; }
 #report { border-collapse: collapse; table-layout: fixed; margin-top: 14px; width: 100%; }
-#report th { border-bottom: 2px solid #ddd; color: #5f6368; font-size: 11px; letter-spacing: .03em; padding: 3px 4px; text-align: left; text-transform: uppercase; }
-#report td { border-bottom: 1px solid #eee; height: 26px; padding: 2px 4px; vertical-align: middle; }
+#report th { border-bottom: 2px solid #303030; color: #999; font-size: 11px; letter-spacing: .03em; padding: 3px 4px; text-align: left; text-transform: uppercase; }
+#report td { border-bottom: 1px solid #303030; height: 26px; padding: 2px 4px; vertical-align: middle; }
 #report th:first-child, #report td:first-child { text-align: right; width: 28px; }
 #report th:nth-child(2) { width: 36%; }
 .track { display: block; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-list { display: flex; gap: 4px; overflow-x: auto; white-space: nowrap; }
 .pill { align-items: center; box-sizing: border-box; border-radius: 999px; color: #fff; display: inline-flex; font-size: 11px; font-weight: 650; height: 22px; justify-content: center; line-height: 16px; min-width: 21px; padding: 3px 7px; text-decoration: none; }
 .pill--positive, .pill--negative { color: #fff; }
-.pill--positive { background: #238636; }
-.pill--negative { background: #b42318; }
+.pill--positive { background: #303030; }
+.pill--negative { background: #999; color: #121212; }
 .pill__icon { font-size: 13px; }
 .pill__label { margin-left: 5px; }
 .pill--download { appearance: none; border: 0; cursor: pointer; font: inherit; line-height: 16px; }
 .pill--download[disabled] { cursor: wait; }
-.pill--busy { background: #9a6700; }
-.pill--started { background: #238636; }
-a { color: #1769aa; overflow-wrap: anywhere; }
+.pill--busy { background: #999; color: #121212; }
+.pill--started { background: #303030; }
+a { color: #fff; overflow-wrap: anywhere; }

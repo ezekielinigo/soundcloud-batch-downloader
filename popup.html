@@ -51,6 +51,14 @@
             <input id="tab-timeout" name="tabTimeout" type="number" min="0" step="1" value="30000" required inputmode="numeric">
           </fieldset>
 
+          <fieldset id="connected-accounts">
+            <legend>Connected accounts</legend>
+            <div class="account-actions">
+              <button id="soundcloud-account" class="account-button" type="button" data-service="soundcloud" data-account-state="checking" aria-label="SoundCloud - Checking" title="Checking SoundCloud…" disabled><i class="fa-brands fa-soundcloud" aria-hidden="true"></i><span> - Checking…</span></button>
+              <button id="spotify-account" class="account-button" type="button" data-service="spotify" data-account-state="checking" aria-label="Spotify - Checking" title="Checking Spotify…" disabled><i class="fa-brands fa-spotify" aria-hidden="true"></i><span> - Checking…</span></button>
+            </div>
+          </fieldset>
+
           <div class="settings-actions">
             <button id="save-settings" type="submit">Save settings</button>
             <span id="settings-status" role="status" aria-live="polite"></span>
