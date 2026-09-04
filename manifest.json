@@ -3,7 +3,7 @@
   "name": "SoundCloud Playlist Download Report",
   "version": "0.5.0",
   "description": "Reports official SoundCloud download availability and external download links for tracks in a SoundCloud playlist.",
-  "permissions": ["activeTab", "tabs", "scripting", "clipboardWrite", "storage", "webRequest"],
+  "permissions": ["activeTab", "tabs", "scripting", "clipboardWrite", "storage", "webRequest", "downloads"],
   "host_permissions": ["https://soundcloud.com/*", "https://*.soundcloud.com/*"],
   "optional_host_permissions": ["https://bandcamp.com/*", "https://*.bandcamp.com/*"],
   "action": {

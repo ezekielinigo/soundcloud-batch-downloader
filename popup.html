@@ -11,6 +11,52 @@
     <main>
       <h1>Playlist report</h1>
       <p id="status">Open a SoundCloud playlist, then scan it.</p>
+      <details id="settings">
+        <summary>Settings</summary>
+        <form id="settings-form">
+          <fieldset>
+            <legend>Hypeddit/Pumpyoursound</legend>
+            <label for="gate-email">Email</label>
+            <input id="gate-email" name="gateEmail" type="text" autocomplete="email">
+            <label for="gate-name">Name</label>
+            <input id="gate-name" name="gateName" type="text" autocomplete="name">
+            <label for="gate-comment">Comment</label>
+            <textarea id="gate-comment" name="gateComment" rows="3"></textarea>
+          </fieldset>
+
+          <fieldset>
+            <legend>Bandcamp</legend>
+            <label for="bandcamp-email">Email</label>
+            <input id="bandcamp-email" name="bandcampEmail" type="text" autocomplete="email">
+            <label for="bandcamp-file-type">File type</label>
+            <select id="bandcamp-file-type" name="bandcampFileType">
+              <option value="mp3-v0">MP3 V0</option>
+              <option value="mp3-320">MP3 320</option>
+              <option value="flac">FLAC</option>
+              <option value="aac">AAC</option>
+              <option value="ogg-vorbis">Ogg Vorbis</option>
+              <option value="alac">ALAC</option>
+              <option value="wav">WAV</option>
+              <option value="aiff">AIFF</option>
+            </select>
+          </fieldset>
+
+          <fieldset>
+            <legend>Browser tabs</legend>
+            <label class="checkbox-label" for="auto-close-tabs">
+              <input id="auto-close-tabs" name="autoCloseTabs" type="checkbox">
+              Auto close tabs
+            </label>
+            <label for="tab-timeout">Timeout in ms</label>
+            <input id="tab-timeout" name="tabTimeout" type="number" min="0" step="1" value="30000" required inputmode="numeric">
+          </fieldset>
+
+          <div class="settings-actions">
+            <button id="save-settings" type="submit">Save settings</button>
+            <span id="settings-status" role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </details>
       <div id="scan-progress" hidden aria-live="polite">
         <progress id="scan-progress-bar" value="0" max="1"></progress>
         <span id="scan-progress-count">0/0</span>
@@ -24,7 +70,7 @@
       </details>
       <table id="report" aria-live="polite" hidden>
         <thead>
-          <tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Download</th></tr>
+          <tr><th scope="col">#</th><th scope="col">Title</th><th scope="col">Link</th><th scope="col">Download</th></tr>
         </thead>
         <tbody></tbody>
       </table>

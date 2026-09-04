@@ -88,17 +88,102 @@
       || links.find(isBandcampReleaseUrl);
   }
 
-  async function classifyBandcamp(url) {
+  function normalizedTitle(value, { removeParenthetical = false } = {}) {
+    let title = String(value || "");
+    if (removeParenthetical) title = title.replace(/[\[(][^\])]*[\])]/g, " ");
+    return title.normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+  }
+
+  function levenshteinDistance(left, right) {
+    const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let row = 1; row <= left.length; row += 1) {
+      const current = [row];
+      for (let column = 1; column <= right.length; column += 1) {
+        current[column] = left[row - 1] === right[column - 1]
+          ? previous[column - 1]
+          : 1 + Math.min(previous[column], current[column - 1], previous[column - 1]);
+      }
+      previous.splice(0, previous.length, ...current);
+    }
+    return previous[right.length];
+  }
+
+  function titleSimilarity(left, right) {
+    const fullLeft = normalizedTitle(left);
+    const fullRight = normalizedTitle(right);
+    const baseLeft = normalizedTitle(left, { removeParenthetical: true });
+    const baseRight = normalizedTitle(right, { removeParenthetical: true });
+    const score = (first, second) => {
+      if (!first || !second) return 0;
+      return 1 - (levenshteinDistance(first, second) / Math.max(first.length, second.length));
+    };
+    return Math.max(score(fullLeft, fullRight), score(baseLeft, baseRight));
+  }
+
+  function bandcampPrice(document) {
+    const purchase = document.querySelector("button.download-link.buy-link, .download-link.buy-link");
+    const text = [purchase?.parentElement?.textContent, document.body?.textContent]
+      .filter(Boolean)
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .join(" ");
+    const match = text.match(/buy\s+digital\s+(?:track|album)\s+([€£¥$]?\s*\d+(?:[.,]\d+)?)\s*(USD|EUR|GBP|CAD|AUD|NZD|JPY|PHP|BRL|MXN)\b/i)
+      || text.match(/([€£¥$]?\s*\d+(?:[.,]\d+)?)\s*(USD|EUR|GBP|CAD|AUD|NZD|JPY|PHP|BRL|MXN)\b/i);
+    if (!match) return "";
+    const rawAmount = match[1].replace(/[^\d.,]/g, "");
+    const normalizedAmount = rawAmount.includes(",") && !rawAmount.includes(".") && /,\d{1,2}$/.test(rawAmount)
+      ? rawAmount.replace(",", ".")
+      : rawAmount.replace(/,/g, "");
+    const amount = Number(normalizedAmount);
+    return Number.isFinite(amount) ? `${match[2].toUpperCase()} ${amount.toFixed(2)}` : "";
+  }
+
+  function resolveAlbumTrack(document, albumUrl, soundcloudTitle) {
+    const candidates = [...document.querySelectorAll("#track_table.track_list.track_table td.title-col a[href*='/track/']")]
+      .map((anchor) => ({
+        title: anchor.querySelector(".track-title")?.textContent?.trim() || anchor.textContent?.trim() || "",
+        url: new URL(anchor.getAttribute("href"), albumUrl).href
+      }))
+      .filter((candidate) => isBandcampReleaseUrl(candidate.url) && /\/track\//i.test(new URL(candidate.url).pathname))
+      .map((candidate) => ({ ...candidate, score: titleSimilarity(soundcloudTitle, candidate.title) }))
+      .sort((left, right) => right.score - left.score);
+    return candidates[0]?.score >= 0.9 ? candidates[0] : null;
+  }
+
+  async function classifyBandcamp(url, soundcloudTitle) {
     try {
       const response = await fetch(url, { credentials: "omit", redirect: "follow" });
       if (!response.ok) throw new Error(`Bandcamp returned ${response.status}`);
       const html = await response.text();
-      return /name\s*(?:your|ur)\s*price|pay\s+what\s+you\s+want/i.test(html)
-        ? { label: "Bandcamp (free)", iconClass: ICON_CLASSES.bandcamp, url }
-        : { label: "Bandcamp (paid)", iconClass: ICON_CLASSES.bandcamp, url };
+      const document = new DOMParser().parseFromString(html, "text/html");
+      let resolvedUrl = response.url || url;
+      if (/\/album\//i.test(new URL(resolvedUrl).pathname)) {
+        const resolved = resolveAlbumTrack(document, resolvedUrl, soundcloudTitle);
+        if (!resolved) {
+          return { label: "Bandcamp (no track match)", iconClass: STATUS_ICONS.unavailable, variant: "negative", url };
+        }
+        resolvedUrl = resolved.url;
+        const trackResponse = await fetch(resolvedUrl, { credentials: "omit", redirect: "follow" });
+        if (!trackResponse.ok) throw new Error(`Bandcamp track returned ${trackResponse.status}`);
+        const trackHtml = await trackResponse.text();
+        return classifyBandcampDocument(new DOMParser().parseFromString(trackHtml, "text/html"), trackResponse.url || resolvedUrl);
+      }
+      return classifyBandcampDocument(document, resolvedUrl);
     } catch (_) {
       return { label: "Bandcamp (paid)", iconClass: ICON_CLASSES.bandcamp, url };
     }
+  }
+
+  function classifyBandcampDocument(document, url) {
+    const text = document.body?.textContent || "";
+    if (/name\s*(?:your|ur)\s*price|pay\s+what\s+you\s+want/i.test(text)) {
+      return { label: "Bandcamp (free)", iconClass: ICON_CLASSES.bandcamp, url };
+    }
+    return { label: "Bandcamp (paid)", iconClass: ICON_CLASSES.bandcamp, url, price: bandcampPrice(document) };
   }
 
   function valueFromTrackData(html, key) {
@@ -121,12 +206,12 @@
     if (typeof downloadUrl === "string") {
       try { soundcloudDownload = new URL(downloadUrl, track.url).href; } catch (_) { /* use track page */ }
     }
-    if (downloadable) logs.push({ label: "Soundcloud", iconClass: ICON_CLASSES.soundcloud, url: soundcloudDownload });
+    if (downloadable) logs.push({ label: "Soundcloud", iconClass: ICON_CLASSES.soundcloud, url: soundcloudDownload, trackUrl: track.url });
     for (const url of hypeddit) logs.push({ label: "Hypeddit", iconClass: ICON_CLASSES.hypeddit, url });
     for (const url of droploud) logs.push({ label: "Droploud", iconClass: ICON_CLASSES.droploud, url });
     for (const url of pumpyoursound) logs.push({ label: "Pumpyoursound", iconClass: ICON_CLASSES.pumpyoursound, url });
     const bandcampRelease = firstBandcampRelease(bandcamp);
-    if (bandcampRelease) logs.push(await classifyBandcamp(bandcampRelease));
+    if (bandcampRelease) logs.push(await classifyBandcamp(bandcampRelease, track.title));
     if (!logs.length) logs.push(regionalRestriction ? restrictedLog() : unavailableLog());
     return { ...track, logs };
   }

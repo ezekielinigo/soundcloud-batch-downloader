@@ -9,7 +9,7 @@ A Firefox sidebar extension that scans tracks in the open SoundCloud playlist an
 - `Downloads disabled` — no supported download destination was detected.
 - `Regional restrictions` — SoundCloud explicitly reported that the track is unavailable in a country.
 
-The extension only reports metadata that the open SoundCloud page is allowed to access. It does not download media, bypass download gates, or submit third-party forms.
+The extension only reports metadata that the open SoundCloud page is allowed to access. A user can explicitly start the supported Bandcamp free-download flow from its **DOWNLOAD** pill; it does not bypass download gates or submit payment, email, login, CAPTCHA, or other unexpected third-party forms.
 
 Long playlists do not need to be scrolled first. SoundCloud embeds the complete ordered track-ID list in the playlist page, then requests complete track records in batches as rows become visible. The extension reads that embedded order and makes equivalent internal web-app requests in batches of 30. This does not use SoundCloud's developer API, require a developer application, or require a Pro account.
 
@@ -33,6 +33,10 @@ It can also scan a private playlist when you are already signed in to SoundCloud
 6. On the first scan, approve Firefox’s optional request for Bandcamp access. SoundCloud access is a required extension permission so its initial metadata request can be observed before the Scan button is clicked.
 
 Use **Copy report** to place the final list on the clipboard.
+
+Open **Settings** in the sidebar to save the form details used for Hypeddit/Pumpyoursound and Bandcamp submissions, along with the preferred Bandcamp file type. The Browser tabs options store whether tabs should be closed automatically and the timeout in milliseconds. These values are saved in the extension’s local browser storage.
+
+The **LINK** column opens each discovered destination. For Bandcamp album links, the report resolves the closest matching track title before displaying either destination. The **DOWNLOAD** column automates `Bandcamp (free)` entries: it opens an extension-owned background tab, follows Bandcamp's zero-price download flow, selects the saved format, and starts the official download. Once Firefox creates the download, the completed pill shows its filename. A free checkout that requires an email uses the saved Bandcamp email, then shows **Sent to email** and closes its tab. Paid Bandcamp entries show a lock and the track's displayed price; their pill opens the official track page without automation. If auto-close is enabled, direct-download tabs close after the configured timeout once the final Bandcamp download link is clicked; failed tabs stay open for inspection.
 
 If scanning fails, the popup opens a **Diagnostics** section. Use **Copy diagnostics** and share that output when reporting a problem. Secret query parameters and SoundCloud `/s-...` tokens are redacted from the diagnostic URL.
 
