@@ -40,9 +40,9 @@ The user can choose which legitimate source types to process or discover:
 - **Bandcamp link** — detect and report/open an external link; identify an apparent free or “name your price” option where possible.
 - **Cloud-storage link** — detect Google Drive and Dropbox links and report/open them for the user.
 
-### Download gate bypass
+### Hypeddit download handling
 
-The extension utilizes a modified and updated version of an existing tampermonkey script (tampermonkey_hypeddit_bypasser.js).
+The extension uses its own background-tab runner. For a user-selected Hypeddit result, it clicks the final Download control already present in the page and waits for Firefox to create the resulting download. It does not load the legacy `tampermonkey_hypeddit_bypasser.js` file or automate social actions, comments, logins, email forms, or CAPTCHAs.
 
 ## Processing behavior
 

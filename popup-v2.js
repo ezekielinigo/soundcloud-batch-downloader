@@ -21,7 +21,7 @@ const ACCOUNT_UI = Object.freeze({
 let accountRefreshGeneration = 0;
 let latestResults = [];
 let debugLog = {};
-const bandcampRunStates = new Map();
+const downloadRunStates = new Map();
 const downloadButtonsByRunId = new Map();
 const SETTINGS_KEY = "settings";
 const LOCAL_DEFAULT_SETTINGS_FILE = "default-settings.local.json";
@@ -37,9 +37,13 @@ const DEFAULT_SETTINGS = Object.freeze({
 const BANDCAMP_FILE_TYPES = new Set([
   "mp3-v0", "mp3-320", "flac", "aac", "ogg-vorbis", "alac", "wav", "aiff"
 ]);
-const REQUIRED_ORIGINS = [
+const BANDCAMP_ORIGINS = [
   "https://bandcamp.com/*",
   "https://*.bandcamp.com/*"
+];
+const HYPEDDIT_ORIGINS = [
+  "https://hypeddit.com/*",
+  "https://www.hypeddit.com/*"
 ];
 
 function normalizedSettings(value) {
@@ -250,24 +254,40 @@ function setPillContent(pill, iconClass, label) {
   pill.replaceChildren(icon, text);
 }
 
-function applyBandcampRunState(runId) {
+function applyDownloadRunState(runId) {
   const pill = downloadButtonsByRunId.get(runId);
   if (!pill) return;
-  const detail = bandcampRunStates.get(runId) || { state: "ready", message: "" };
+  const detail = downloadRunStates.get(runId) || { state: "ready", message: "" };
   pill.className = "pill pill--download";
   pill.disabled = false;
+  if (detail.state === "queued") {
+    pill.classList.add("pill--busy");
+    pill.disabled = true;
+    pill.title = detail.message || "Queued for download.";
+    pill.setAttribute("aria-label", pill.title);
+    setPillContent(pill, "fa-solid fa-clock", "Queued");
+    return;
+  }
   if (detail.state === "opening" || detail.state === "selecting-format" || detail.state === "processing") {
     pill.classList.add("pill--busy");
     pill.disabled = true;
-    pill.title = detail.message || "Preparing Bandcamp download…";
+    pill.title = detail.message || "Preparing download…";
     pill.setAttribute("aria-label", pill.title);
     setPillContent(pill, "fa-solid fa-spinner fa-spin", "Processing…");
     return;
   }
-  if (detail.state === "started") {
+  if (detail.state === "downloading") {
+    pill.classList.add("pill--busy");
+    pill.disabled = true;
+    pill.title = detail.message || "Firefox is downloading the file.";
+    pill.setAttribute("aria-label", pill.title);
+    setPillContent(pill, "fa-solid fa-spinner fa-spin", "Downloading…");
+    return;
+  }
+  if (detail.state === "started" || detail.state === "finished") {
     pill.classList.add("pill--started");
     pill.disabled = true;
-    pill.title = detail.message || "Bandcamp download started";
+    pill.title = detail.message || "Download finished";
     pill.setAttribute("aria-label", pill.title);
     setPillContent(pill, "fa-solid fa-check", "Finished");
     return;
@@ -282,7 +302,7 @@ function applyBandcampRunState(runId) {
   }
   if (detail.state === "failed") {
     pill.classList.add("pill--negative");
-    pill.title = detail.message || "Bandcamp download failed. Click to retry.";
+    pill.title = detail.message || "Download failed. Click to retry.";
     pill.setAttribute("aria-label", pill.title);
     setPillContent(pill, "fa-solid fa-ban", "Failed");
     return;
@@ -344,7 +364,18 @@ function render(results) {
         pill.dataset.runId = runId;
         pill.dataset.soundcloudTrackUrl = log.trackUrl || item.url;
         downloadButtonsByRunId.set(runId, pill);
-        applyBandcampRunState(runId);
+        applyDownloadRunState(runId);
+        downloadList.append(pill);
+        return;
+      }
+      if (log.label === "Hypeddit") {
+        const runId = runIdFor("hypeddit", index, logIndex);
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.dataset.runId = runId;
+        pill.dataset.hypedditUrl = log.url;
+        downloadButtonsByRunId.set(runId, pill);
+        applyDownloadRunState(runId);
         downloadList.append(pill);
         return;
       }
@@ -367,7 +398,7 @@ function render(results) {
       pill.dataset.runId = runId;
       pill.dataset.bandcampUrl = log.url;
       downloadButtonsByRunId.set(runId, pill);
-      applyBandcampRunState(runId);
+      applyDownloadRunState(runId);
       downloadList.append(pill);
     });
     downloadCell.append(downloadList);
@@ -380,27 +411,45 @@ function render(results) {
 reportBody.addEventListener("click", async (event) => {
   const pill = event.target.closest("button.pill--download");
   if (!pill || pill.disabled) return;
-  const { runId, bandcampUrl, soundcloudTrackUrl } = pill.dataset;
-  if (!runId || (!bandcampUrl && !soundcloudTrackUrl)) return;
+  const { runId, bandcampUrl, soundcloudTrackUrl, hypedditUrl } = pill.dataset;
+  if (!runId || (!bandcampUrl && !soundcloudTrackUrl && !hypedditUrl)) return;
 
   if (soundcloudTrackUrl) {
-    bandcampRunStates.set(runId, { state: "opening", message: "Opening SoundCloud in a background tab…" });
-    applyBandcampRunState(runId);
+    downloadRunStates.set(runId, { state: "opening", message: "Opening SoundCloud in a background tab…" });
+    applyDownloadRunState(runId);
     try {
       const result = await browser.runtime.sendMessage({ type: "startSoundcloudDownload", runId, trackUrl: soundcloudTrackUrl });
       if (!result?.started) throw new Error("SoundCloud download did not start.");
     } catch (error) {
-      bandcampRunStates.set(runId, { state: "failed", message: error.message || "SoundCloud download failed. Click to retry." });
-      applyBandcampRunState(runId);
+      downloadRunStates.set(runId, { state: "failed", message: error.message || "SoundCloud download failed. Click to retry." });
+      applyDownloadRunState(runId);
+    }
+    return;
+  }
+
+  if (hypedditUrl) {
+    const permissionRequest = browser.permissions.request({ origins: HYPEDDIT_ORIGINS });
+    downloadRunStates.set(runId, { state: "queued", message: "Requesting Hypeddit access…" });
+    applyDownloadRunState(runId);
+    try {
+      if (!(await permissionRequest)) {
+        throw new Error("Hypeddit access was not granted. Click the Download pill again and allow access when Firefox asks.");
+      }
+      const result = await browser.runtime.sendMessage({ type: "startHypedditDownload", runId, url: hypedditUrl });
+      if (result?.duplicate) return;
+      if (!result?.started) throw new Error("Hypeddit download did not start.");
+    } catch (error) {
+      downloadRunStates.set(runId, { state: "failed", message: error.message || "Hypeddit download failed. Click to retry." });
+      applyDownloadRunState(runId);
     }
     return;
   }
 
   // Firefox only permits requesting optional hosts in the direct user-gesture
   // turn. A scanned report can outlive a previous denial or extension reload.
-  const permissionRequest = browser.permissions.request({ origins: REQUIRED_ORIGINS });
-  bandcampRunStates.set(runId, { state: "opening", message: "Opening Bandcamp in a background tab…" });
-  applyBandcampRunState(runId);
+  const permissionRequest = browser.permissions.request({ origins: BANDCAMP_ORIGINS });
+  downloadRunStates.set(runId, { state: "opening", message: "Opening Bandcamp in a background tab…" });
+  applyDownloadRunState(runId);
   try {
     if (!(await permissionRequest)) {
       throw new Error("Bandcamp access was not granted. Click the Download pill again and allow access when Firefox asks.");
@@ -409,15 +458,15 @@ reportBody.addEventListener("click", async (event) => {
     if (result?.duplicate) return;
     if (!result?.started) throw new Error("Bandcamp download did not start.");
   } catch (error) {
-    bandcampRunStates.set(runId, { state: "failed", message: error.message || "Bandcamp download failed. Click to retry." });
-    applyBandcampRunState(runId);
+    downloadRunStates.set(runId, { state: "failed", message: error.message || "Bandcamp download failed. Click to retry." });
+    applyDownloadRunState(runId);
   }
 });
 
 browser.runtime.onMessage.addListener((message) => {
-  if ((message?.type !== "bandcampDownloadProgress" && message?.type !== "soundcloudDownloadProgress") || typeof message.runId !== "string") return undefined;
-  bandcampRunStates.set(message.runId, { state: message.state, message: message.message || "" });
-  applyBandcampRunState(message.runId);
+  if (!["bandcampDownloadProgress", "soundcloudDownloadProgress", "hypedditDownloadProgress"].includes(message?.type) || typeof message.runId !== "string") return undefined;
+  downloadRunStates.set(message.runId, { state: message.state, message: message.message || "" });
+  applyDownloadRunState(message.runId);
   return undefined;
 });
 
@@ -494,7 +543,7 @@ async function hydratePlaylistSnapshot(playlist, tabId) {
 scanButton.addEventListener("click", async () => {
   // Invoke this before awaiting anything else: Firefox only permits a runtime
   // permission request directly inside the user's click handler.
-  const permissionRequest = browser.permissions.request({ origins: REQUIRED_ORIGINS });
+  const permissionRequest = browser.permissions.request({ origins: BANDCAMP_ORIGINS });
   // Start this lookup in the same click turn. Later tab switches must not retarget
   // a scan that is already in progress.
   const activeTabRequest = browser.tabs.query({ active: true, currentWindow: true });
@@ -504,12 +553,12 @@ scanButton.addEventListener("click", async () => {
   hideProgress();
   reportBody.replaceChildren();
   report.hidden = true;
-  bandcampRunStates.clear();
+  downloadRunStates.clear();
   downloadButtonsByRunId.clear();
   debugLog = { extensionVersion: browser.runtime.getManifest().version };
   try {
     const hostPermissionGranted = await permissionRequest;
-    setDebug("hostPermission", { granted: hostPermissionGranted, origins: REQUIRED_ORIGINS });
+    setDebug("hostPermission", { granted: hostPermissionGranted, origins: BANDCAMP_ORIGINS });
     if (!hostPermissionGranted) {
       throw new Error("Bandcamp access was not granted. Click Scan playlist and allow access when Firefox asks.");
     }

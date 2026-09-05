@@ -9,12 +9,17 @@
     "https://*.soundcloud.com/*",
     "https://accounts.spotify.com/*"
   ],
-  "optional_host_permissions": ["https://bandcamp.com/*", "https://*.bandcamp.com/*"],
+  "optional_host_permissions": [
+    "https://bandcamp.com/*",
+    "https://*.bandcamp.com/*",
+    "https://hypeddit.com/*",
+    "https://www.hypeddit.com/*"
+  ],
   "action": {
     "default_title": "Open SoundCloud Playlist Report"
   },
   "background": {
-    "scripts": ["connected-accounts.js", "background-v2.js"]
+    "scripts": ["connected-accounts.js", "hypeddit-download-manager.js", "background-v2.js"]
   },
   "sidebar_action": {
     "default_title": "Playlist report",

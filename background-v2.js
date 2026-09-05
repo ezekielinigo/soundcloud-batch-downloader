@@ -16,6 +16,7 @@ const bandcampRunsByTabId = new Map();
 const activeBandcampRunIds = new Map();
 const soundcloudRunsByTabId = new Map();
 const activeSoundcloudRunIds = new Map();
+const hypedditDownloads = globalThis.HypedditDownloadManager.create(browser, { timeoutMs: DOWNLOAD_START_TIMEOUT_MS });
 
 browser.action.onClicked.addListener(() => browser.sidebarAction.open());
 
@@ -80,6 +81,14 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   } catch (_) {
     void forgetRequestContext(tabId);
   }
+});
+
+browser.tabs.onCreated.addListener((tab) => {
+  void hypedditDownloads.onTabCreated(tab);
+});
+
+browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  hypedditDownloads.onTabUpdated(tabId, changeInfo, tab);
 });
 
 function isBandcampReleaseUrl(value) {
@@ -416,6 +425,10 @@ browser.tabs.onRemoved.addListener((tabId) => {
 });
 
 browser.tabs.onRemoved.addListener((tabId) => {
+  hypedditDownloads.onTabRemoved(tabId);
+});
+
+browser.tabs.onRemoved.addListener((tabId) => {
   const run = soundcloudRunsByTabId.get(tabId);
   if (!run) return;
   if (run.closing) {
@@ -426,6 +439,7 @@ browser.tabs.onRemoved.addListener((tabId) => {
 });
 
 browser.downloads.onCreated.addListener((download) => {
+  void hypedditDownloads.onDownloadCreated(download);
   for (const run of bandcampRunsByTabId.values()) {
     if (runMatchesDownload(run, download)) void finishBandcampDownload(run, download);
   }
@@ -433,6 +447,10 @@ browser.downloads.onCreated.addListener((download) => {
     .filter((run) => soundcloudDownloadMatchesRun(run, download))
     .sort((left, right) => (right.clickedAt || right.automationStartedAt || 0) - (left.clickedAt || left.automationStartedAt || 0))[0];
   if (soundcloudRun) void finishSoundcloudDownload(soundcloudRun, download);
+});
+
+browser.downloads.onChanged.addListener((delta) => {
+  void hypedditDownloads.onDownloadChanged(delta);
 });
 
 browser.webRequest.onBeforeSendHeaders.addListener(
@@ -564,6 +582,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
   if (message?.type === "hydratePlaylistTracks") return hydratePlaylistTracks(message);
   if (message?.type === "startBandcampFreeDownload") return startBandcampFreeDownload(message);
   if (message?.type === "startSoundcloudDownload") return startSoundcloudDownload(message);
+  if (message?.type === "startHypedditDownload") return hypedditDownloads.start(message);
   if (message?.type === "soundcloudRunnerResult") {
     const run = soundcloudRunsByTabId.get(sender.tab?.id);
     if (!run || run.finished || run.phase !== "waiting-for-download") return undefined;
